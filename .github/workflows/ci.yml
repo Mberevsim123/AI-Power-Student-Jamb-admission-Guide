@@ -120,7 +120,7 @@ jobs:
           tags: ${{ env.IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Release step, exactly as Railway pre-deploy runs it (twice: idempotent)
+      - name: "Release step as Railway pre-deploy runs it (twice, to prove it is idempotent)"
         run: |
           docker run --rm --network host $PROD_ENV $IMAGE python -m scripts.release
           docker run --rm --network host $PROD_ENV $IMAGE python -m scripts.release
