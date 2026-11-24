@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.venv-*/
+
+.env
+.env.*
+!.env.example
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+node_modules/
+client/dist/
+*.tsbuildinfo
+client/playwright-report/
+client/test-results/
+client/coverage/
+
+# Local deliverables (project report, screenshots) — kept on disk, not in the repo
+outputs/
+
+# Editors
+.vscode/
+.idea/

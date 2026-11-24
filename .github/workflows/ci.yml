@@ -1,0 +1,143 @@
+name: CI
+
+# Railway auto-deploys `main` with "Wait for CI": a deploy starts only after every
+# job below succeeds on the pushed commit. Pull requests run the same checks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  backend:
+    name: Backend · lint, migrations, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jamb
+          POSTGRES_PASSWORD: jamb_ci
+          POSTGRES_DB: jamb_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jamb -d jamb_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      ENVIRONMENT: test
+      DEBUG: "true"
+      SECRET_KEY: ci-only-secret-key-not-used-anywhere-else-0123456789
+      DATABASE_URL: postgresql+asyncpg://jamb:jamb_ci@localhost:5432/jamb_test
+      TEST_DATABASE_URL: postgresql+asyncpg://jamb:jamb_ci@localhost:5432/jamb_test
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check app tests scripts
+      - name: Format
+        run: ruff format --check app tests scripts
+      - name: Migrate
+        run: alembic upgrade head
+      - name: Schema drift
+        run: alembic check
+      - name: Test
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend · tests, production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: Type-check and build
+        run: npm run build
+
+  container:
+    name: Container · build and production smoke test
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jamb
+          POSTGRES_PASSWORD: jamb_smoke
+          POSTGRES_DB: jamb_prod
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jamb -d jamb_prod"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      IMAGE: jamb-guide:ci
+      # A plain URL, exactly as hosted Postgres supplies it; the app adds asyncpg.
+      PROD_ENV: >-
+        -e ENVIRONMENT=production -e DEBUG=false
+        -e SECRET_KEY=smoke-test-secret-key-0123456789abcdefghijkl
+        -e DATABASE_URL=postgresql://jamb:jamb_smoke@127.0.0.1:5432/jamb_prod
+        -e REDIS_URL=redis://127.0.0.1:6379/0 -e QDRANT_URL=http://127.0.0.1:1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Release step (migrations + directory seed, as Railway pre-deploy runs it)
+        run: |
+          docker run --rm --network host $PROD_ENV $IMAGE \
+            sh -c "alembic upgrade head && python -m scripts.seed_knowledge && python -m scripts.seed_knowledge"
+      - name: Start in production mode on a platform-assigned port
+        run: docker run -d --name app --network host -e PORT=8081 $PROD_ENV $IMAGE
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8081/health/ready; then echo; break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8081/health/ready | grep -q '"database":"up"'
+          curl -fsS http://127.0.0.1:8081/ | grep -q "JAMB Guide"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/docs)" = "404"
+          code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/api/v1/auth/me)"
+          case "$code" in 401|403) ;; *) echo "Protected route returned $code"; exit 1 ;; esac
+          echo "Production container is healthy."
+      - name: Container logs
+        if: always()
+        run: docker logs app || true

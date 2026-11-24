@@ -1,0 +1,28 @@
+# Secrets and local environments
+.env
+.env.*
+!.env.example
+.venv
+.venv-*
+.git
+.github
+.railway
+
+# Caches and build output (rebuilt in the image)
+__pycache__
+*.py[oc]
+.pytest_cache
+.ruff_cache
+*.egg-info
+**/node_modules
+client/dist
+client/test-results
+client/playwright-report
+*.tsbuildinfo
+.DS_Store
+
+# Not needed at runtime
+tests
+docs
+outputs
+compose.yaml

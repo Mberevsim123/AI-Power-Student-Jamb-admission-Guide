@@ -1,0 +1,57 @@
+[project]
+name = "ai-power-chatbot"
+version = "0.1.0"
+description = "Source-grounded JAMB and Nigerian university admissions guidance API"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiofiles",
+    "alembic",
+    "anthropic",
+    "asyncpg",
+    "celery",
+    "email-validator",
+    "fastapi",
+    "httpx",
+    "json-log-formatter",
+    "openai",
+    "passlib[bcrypt]",
+    "bcrypt>=4.0,<4.1",
+    "pdfplumber",
+    "PyJWT",
+    "pydantic",
+    "pydantic-settings",
+    "qdrant-client",
+    "redis",
+    "fastembed==0.7.4",
+    "sqlalchemy[asyncio]>=2.0,<2.1",
+    "uvicorn[standard]",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["data/*.csv"]
+
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.9"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/models/__init__.py" = ["F401"]
