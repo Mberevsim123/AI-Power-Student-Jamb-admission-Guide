@@ -2,7 +2,7 @@
 # Production image: the API serves the built React client on the same origin.
 
 # ── 1. Client build ─────────────────────────────────────────────────────────
-FROM node:22-alpine AS client-build
+FROM node:26-alpine AS client-build
 WORKDIR /client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci --no-audit --no-fund
