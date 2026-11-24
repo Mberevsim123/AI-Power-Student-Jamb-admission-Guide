@@ -1,0 +1,9 @@
+{
+  "name": "jamb-guide-railway-iac",
+  "private": true,
+  "description": "Railway Infrastructure as Code SDK for .railway/railway.ts",
+  "type": "module",
+  "devDependencies": {
+    "railway": "^3.17.0"
+  }
+}

@@ -31,3 +31,6 @@ outputs/
 # Editors
 .vscode/
 .idea/
+
+# Railway IaC SDK (installed with npm --prefix .railway ci)
+.railway/node_modules/

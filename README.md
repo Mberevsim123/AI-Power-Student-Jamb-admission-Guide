@@ -181,29 +181,26 @@ Production runs the [`Dockerfile`](Dockerfile): one container serves the API and
 
 [`.railway/railway.ts`](.railway/railway.ts) declares the project as Railway Infrastructure as Code:
 - a `postgres` database and a `redis` cache;
-- the `web` service, built from this repository's `main` branch;
+- the `AI-Power-Student-Jamb-admission-Guide` service, built from this repository's `main` branch;
 - a pre-deploy release step: `alembic upgrade head && python -m scripts.seed_knowledge`;
 - the `/health/ready` health check, which confirms the database answers.
 
 Secrets are never stored in the repository: the file marks them `preserve()`, which keeps the values set in Railway. (Railway retired `railway.json` config-as-code for new services; existing files stop being read on 2026-12-01.)
 
-**First deployment**
+**First deployment** (already done for project `loving-nurturing`; repeat for a new environment)
 
-1. Install the [Railway CLI](https://docs.railway.com/guides/cli), then run `railway login`, create or open the project in the Railway dashboard, and run `railway link` in this repository.
-2. Set the secrets once (unused providers can be empty):
+1. Install the [Railway CLI](https://docs.railway.com/guides/cli), run `railway login`, then run `railway link` in this repository. Install the IaC SDK with `npm --prefix .railway ci`.
+2. Set the secrets through standard input, so they never appear on screen or in shell history:
 
    ```sh
-   railway variables --set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
-   railway variables --set GROQ_API_KEY=... --set GEMINI_API_KEY=... \
-     --set OPENAI_API_KEY= --set ANTHROPIC_API_KEY= --set QDRANT_URL= --set QDRANT_API_KEY=
+   python -c "import secrets,sys; sys.stdout.write(secrets.token_urlsafe(48))" | railway variable set SECRET_KEY --stdin --skip-deploys
+   printf %s "$GEMINI_API_KEY" | railway variable set GEMINI_API_KEY --stdin --skip-deploys
    ```
 
-3. Run `railway config plan` and review the output, then `railway config apply`.
-4. In the `web` service settings:
-   - generate a public domain;
-   - confirm the trigger branch is `main`;
-   - turn on **Wait for CI**.
-5. Create the first administrator after signing up through the site: `railway run python -m scripts.create_admin you@example.com`.
+   Optional fallback providers (`GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) and Qdrant (`QDRANT_URL`, `QDRANT_API_KEY`) are set the same way. If you set one, also declare it with `preserve()` in `.railway/railway.ts`.
+3. Run `railway config plan`, review it, then run `railway config apply`. This creates Postgres and Redis, wires `DATABASE_URL` and `REDIS_URL`, and sets the pre-deploy step, the health check and **Wait for CI** (`checkSuites`).
+4. Run `railway domain --port 8000` for a public URL. Production is https://ai-power-student-jamb-admission-guide-production.up.railway.app.
+5. Create the first administrator after signing up on the site: `railway run python -m scripts.create_admin you@example.com`.
 
 **Every release after that** is automatic:
 1. Push to `main` (or merge a pull request).
