@@ -20,7 +20,6 @@ import {
   MessageCircle,
   Plus,
   Search,
-  ShieldCheck,
   Trash2,
   UserRound,
   X,
@@ -557,11 +556,6 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             <AppearanceControl />
-            <span className="source-aware">
-              <ShieldCheck size={15} />
-              Source-aware guidance
-            </span>
-            <span className="topbar-divider" />
             {user ? (
               <button
                 className="topbar-profile"
@@ -617,18 +611,16 @@ export default function App() {
                   : title}
               </span>
             </div>
-            <button
-              className={`connection-status ${online}`}
-              onClick={checkHealth}
-              title="Check service connection"
-            >
-              <span />
-              {online === "checking"
-                ? "Connecting"
-                : online === "online"
-                  ? "Ready to help"
-                  : "Reconnect"}
-            </button>
+            {online !== "online" && (
+              <button
+                className={`connection-status ${online}`}
+                onClick={checkHealth}
+                title="Check service connection"
+              >
+                <span />
+                {online === "checking" ? "Connecting…" : "Offline — reconnect"}
+              </button>
+            )}
           </div>
           <Suspense
             fallback={

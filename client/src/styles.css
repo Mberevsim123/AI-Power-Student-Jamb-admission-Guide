@@ -4136,3 +4136,99 @@ td .source-link {
     scroll-padding-inline: 16px;
   }
 }
+
+/* ── Welcome: a single time-based greeting, then what we discussed last ─── */
+.welcome-intro .welcome-greeting {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.25rem, 1.05rem + 0.9vw, 1.6rem);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.welcome-intro .welcome-recall {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.welcome-recall .text-button {
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .chat-idle .welcome-intro .welcome-greeting {
+    font-size: 1.2rem;
+    text-align: left;
+  }
+  .chat-idle .welcome-intro .welcome-recall {
+    text-align: left;
+  }
+}
+
+/* ── Eligibility result: rule checklist, sections, next steps ──────────── */
+.result-section {
+  margin: 20px 0 8px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.checks {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.check-icon {
+  display: grid;
+  flex: none;
+  margin-top: 2px;
+}
+.check strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.check small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.check-pass .check-icon {
+  color: #18794e;
+}
+.check-fail .check-icon {
+  color: #b3261e;
+}
+.check-warn .check-icon {
+  color: #a15c00;
+}
+.check-missing .check-icon {
+  color: #9b9ba3;
+}
+.next-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.next-steps li {
+  margin: 4px 0;
+}
+.result-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+.welcome-intro + .agent-briefing {
+  margin-top: 22px;
+}

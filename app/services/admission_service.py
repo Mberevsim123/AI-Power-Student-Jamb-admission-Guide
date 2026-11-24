@@ -1,5 +1,7 @@
 """Conservative, institution-specific admissions evaluation."""
 
+import re
+
 from app.repositories.repository import AdmissionRepository
 from app.schemas.schema import EligibilityRequest, EligibilityResult
 
@@ -16,6 +18,148 @@ def normalize_subject(value):
     }.get(value, value)
 
 
+IBASS = "https://eligibility.jamb.gov.ng"
+OFFICIAL_LINKS = [
+    {"label": "JAMB IBASS eligibility checker", "url": IBASS},
+    {"label": "JAMB e-Facility", "url": "https://efacility.jamb.gov.ng"},
+]
+CREDIT = 6  # A1–C6 are credit passes; D7/E8 are passes; F9 is a fail.
+
+
+def _words(value):
+    return " ".join(re.findall(r"[a-z0-9]+", value.casefold()))
+
+
+def course_matches(requested, published):
+    """'Medicine' matches 'Medicine and Surgery'; 'Nursing' matches 'Nursing Science'."""
+    from app.agent.perception import COURSE_ALIASES
+
+    a, b = _words(requested), _words(published)
+    if not a or not b:
+        return False
+    ca, cb = COURSE_ALIASES.get(a, a).casefold(), COURSE_ALIASES.get(b, b).casefold()
+    return a == b or ca == cb or f" {a} " in f" {b} " or f" {b} " in f" {a} "
+
+
+def general_checks(req):
+    """National rules that hold for every UTME candidate and degree programme."""
+    checks = []
+    subjects = [normalize_subject(s) for s in req.jamb_subjects if s.strip()]
+    if not subjects:
+        checks.append(
+            dict(
+                id="utme_subjects",
+                status="missing",
+                label="UTME subjects",
+                detail="Add the four subjects you sat for.",
+            )
+        )
+    else:
+        count_ok = len(set(subjects)) == 4
+        checks.append(
+            dict(
+                id="utme_count",
+                status="pass" if count_ok else "fail",
+                label="Four UTME subjects",
+                detail="You entered four subjects."
+                if count_ok
+                else f"UTME is taken in exactly four subjects; you entered {len(set(subjects))}.",
+            )
+        )
+        english = "english" in subjects
+        checks.append(
+            dict(
+                id="utme_english",
+                status="pass" if english else "fail",
+                label="Use of English in UTME",
+                detail="Included."
+                if english
+                else "Use of English is compulsory for every candidate.",
+            )
+        )
+    grades = {normalize_subject(s): g.upper() for s, g in req.olevel_results.items()}
+    if not grades:
+        checks.append(
+            dict(
+                id="olevel",
+                status="missing",
+                label="O'Level results",
+                detail="Add your WAEC/NECO grades to check credit requirements.",
+            )
+        )
+    else:
+        credits = [s for s, g in grades.items() if GRADE_RANK.get(g, 99) <= CREDIT]
+        five = len(credits) >= 5
+        checks.append(
+            dict(
+                id="olevel_five",
+                status="pass" if five else "fail",
+                label="Five O'Level credits (A1–C6)",
+                detail=f"You have {len(credits)} credit{'s' if len(credits) != 1 else ''}."
+                + (
+                    ""
+                    if five
+                    else " Degree programmes require at least five, in relevant subjects."
+                ),
+            )
+        )
+        eng = grades.get("english")
+        eng_ok = eng is not None and GRADE_RANK.get(eng, 99) <= CREDIT
+        checks.append(
+            dict(
+                id="olevel_english",
+                status="pass" if eng_ok else "fail",
+                label="Credit in English Language",
+                detail=f"{eng}."
+                if eng_ok
+                else f"Required for every degree programme; you have {eng or 'no English result'}.",
+            )
+        )
+        maths = grades.get("mathematics")
+        maths_ok = maths is not None and GRADE_RANK.get(maths, 99) <= CREDIT
+        checks.append(
+            dict(
+                id="olevel_maths",
+                status="pass" if maths_ok else "warn",
+                label="Credit in Mathematics",
+                detail=f"{maths}."
+                if maths_ok
+                else "Required by most programmes (a few arts "
+                "programmes accept a pass) — confirm your course on IBASS.",
+            )
+        )
+    return checks
+
+
+def next_steps(result, checks, has_records):
+    steps = []
+    failed = [c for c in checks if c["status"] == "fail"]
+    if any(c["id"] in ("utme_count", "utme_english") for c in failed):
+        steps.append(
+            "Correct your UTME subject combination: four subjects including Use of English."
+        )
+    if any(c["id"].startswith("olevel") for c in failed):
+        steps.append(
+            "Plan an O'Level resit (WAEC/NECO/NABTEB) for the missing credits, or "
+            "combine two sittings if your course accepts it."
+        )
+    if any(c["status"] == "missing" for c in checks):
+        steps.append("Add your UTME subjects and O'Level grades for a complete check.")
+    if result.missing_subjects:
+        steps.append("Your UTME subjects do not match the course's required combination.")
+    if not has_records:
+        steps.append(
+            "Confirm your course's exact subject and grade requirements on JAMB's IBASS "
+            "checker for your chosen institution."
+        )
+    if result.is_eligible:
+        steps.append(
+            "Register for the institution's Post-UTME screening when it is announced, "
+            "and make sure your O'Level results are uploaded to JAMB."
+        )
+    return steps
+
+
 class AdmissionService:
     def __init__(self, db):
         self.repo = AdmissionRepository(db)
@@ -30,11 +174,10 @@ class AdmissionService:
         return await self.repo.get_universities_by_score(course_name, jamb_score, cycle_id)
 
     async def check_eligibility(self, req: EligibilityRequest) -> EligibilityResult:
-        cycle = (
-            await self.repo.get_cycle_by_year(req.year)
-            if req.year
-            else await self.repo.get_current_cycle()
-        )
+        """Two layers: national rules that always apply, then each institution's
+        published, year-matched requirements. Unknown or unpublished data is reported
+        as missing — never assumed to be met."""
+        checks = general_checks(req)
         result = EligibilityResult(
             course_name=req.course_name,
             jamb_score=req.jamb_score,
@@ -45,23 +188,27 @@ class AdmissionService:
             borderline_universities=[],
             status="insufficient_data",
             assessments=[],
+            general_checks=checks,
+            official_links=OFFICIAL_LINKS,
         )
-        if not cycle:
-            result.reason = "No admission cycle data is available for the requested year."
-            return result
-        cutoffs = await self.repo.get_cutoffs(cycle.id)
-        matching = [
-            c
-            for c in cutoffs
-            if c.course
-            and c.course.is_active
-            and c.university.is_active
-            and c.course.name.casefold() == req.course_name.strip().casefold()
-            and (not req.university_id or c.university_id == req.university_id)
-        ]
-        if not matching:
-            result.reason = "No course-specific cut-offs are available for this course and cycle."
-            return result
+        general_failed = any(c["status"] == "fail" for c in checks)
+        cycle = (
+            await self.repo.get_cycle_by_year(req.year)
+            if req.year
+            else await self.repo.get_current_cycle()
+        )
+        matching = []
+        if cycle:
+            cutoffs = await self.repo.get_cutoffs(cycle.id)
+            matching = [
+                c
+                for c in cutoffs
+                if c.course
+                and c.course.is_active
+                and c.university.is_active
+                and course_matches(req.course_name, c.course.name)
+                and (not req.university_id or c.university_id == req.university_id)
+            ]
         subjects = {normalize_subject(s) for s in req.jamb_subjects}
         grades = {normalize_subject(s): g.upper() for s, g in req.olevel_results.items()}
         for cutoff in matching:
@@ -99,9 +246,13 @@ class AdmissionService:
             )
             entry["status"] = (
                 "meets_requirements"
-                if complete and not missing and not failed and req.jamb_score >= cutoff.score
-                else "does_not_meet_requirements"
                 if complete
+                and not missing
+                and not failed
+                and not general_failed
+                and req.jamb_score >= cutoff.score
+                else "does_not_meet_requirements"
+                if complete or general_failed
                 else "insufficient_data"
             )
             result.assessments.append(entry)
@@ -109,19 +260,50 @@ class AdmissionService:
                 result.eligible_universities.append(entry)
                 if entry["margin"] <= 10:
                     result.borderline_universities.append(entry)
+        result.assessments.sort(key=lambda a: (-a["margin"], a["university"]))
         result.is_eligible = bool(result.eligible_universities)
         result.status = (
             "meets_requirements"
             if result.is_eligible
-            else "insufficient_data"
-            if any(a["status"] == "insufficient_data" for a in result.assessments)
             else "does_not_meet_requirements"
+            if general_failed
+            or (
+                result.assessments
+                and all(a["status"] == "does_not_meet_requirements" for a in result.assessments)
+            )
+            else "insufficient_data"
         )
         result.missing_subjects = sorted(
             {s for a in result.assessments for s in a["missing_subjects"]}
         )
         result.failed_olevel = sorted({s for a in result.assessments for s in a["failed_olevel"]})
-        result.reason = "Meeting published requirements does not guarantee admission. Confirm sitting limits, screening and any programme-specific conditions with the institution."
+        if general_failed:
+            result.reason = (
+                "Your results do not meet the national entry rules below, so no institution "
+                "can admit you with them as entered. Fix those first."
+            )
+        elif not cycle:
+            result.reason = (
+                f"No admission cycle {'for ' + str(req.year) + ' ' if req.year else ''}has been "
+                "published here yet, so institution cut-offs cannot be compared. The national "
+                "rules below were checked."
+            )
+        elif not matching:
+            result.reason = (
+                f"No institution has published {req.course_name} requirements for "
+                f"{cycle.year} here yet. The national rules below were checked."
+            )
+        elif result.is_eligible:
+            result.reason = (
+                "You meet the published requirements below. Meeting them does not guarantee "
+                "admission: Post-UTME screening, catchment and quotas still apply."
+            )
+        else:
+            result.reason = (
+                "Compared with each institution's published requirements for "
+                f"{cycle.year}. Meeting them does not guarantee admission."
+            )
+        result.next_steps = next_steps(result, checks, bool(matching))
         return result
 
     async def _university_id(self, name):

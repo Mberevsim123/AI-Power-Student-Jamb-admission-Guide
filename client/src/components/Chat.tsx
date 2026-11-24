@@ -9,7 +9,6 @@ import {
   GraduationCap,
   ListChecks,
   MessageCircle,
-  ShieldCheck,
   Square,
   ThumbsDown,
   ThumbsUp,
@@ -17,13 +16,19 @@ import {
 
 import { api, ApiError, errorMessage, safeUrl } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { AgentState, Message, Source } from "../lib/types";
+import type { AgentState, Briefing, Message, Source } from "../lib/types";
 import { ErrorNotice, SourceLink, Spinner } from "./ui";
 import { AgentTurn, BriefingPanel, OfficialLinks } from "./Agent";
 import { useReveal } from "../lib/reveal";
 import { SearchGrounding } from "./SearchGrounding";
 
 const Markdown = lazy(() => import("./Markdown"));
+
+/** Greeting by the student's own clock. */
+function greeting(now = new Date()) {
+  const hour = now.getHours();
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+}
 
 const suggestions = [
   {
@@ -368,7 +373,16 @@ export function Chat({
   const name = user?.profile?.display_name?.split(" ")[0] || user?.username;
   const idle = messages.length === 0 && !loading && !busy;
   const [personal, setPersonal] = useState<string[]>([]);
-  const onSuggest = useCallback((prompts: string[]) => setPersonal(prompts), []);
+  const [recall, setRecall] = useState("");
+  const onBriefing = useCallback((briefing: Briefing) => {
+    setPersonal(briefing.suggestions);
+    const last = briefing.recall;
+    setRecall(
+      last?.course
+        ? last.course + (last.universities[0] ? ` at ${last.universities[0]}` : "")
+        : "",
+    );
+  }, []);
   const lastAssistant = messages.reduce(
     (last, message, index) => (message.role === "assistant" ? index : last),
     -1,
@@ -387,22 +401,26 @@ export function Chat({
           ) : messages.length === 0 ? (
             <div className="welcome">
               <div className="welcome-intro">
-                <span className="welcome-badge">
-                  <span className="tiny-star">✦</span> YOUR NEXT CHAPTER STARTS
-                  HERE
-                </span>
-                <h1>
-                  Big questions.
-                  <br />
-                  <em>Clear next steps.</em>
-                </h1>
-                <p>
-                  {name ? `Hello ${name}. ` : ""}Ask anything about JAMB and
-                  university admissions.
+                <p className="welcome-greeting">
+                  {greeting()}
+                  {name ? ` ${name}` : ""}. Ask anything about JAMB and university
+                  admissions.
                 </p>
+                {recall && (
+                  <p className="welcome-recall">
+                    Last time we looked at {recall}.{" "}
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => onSend(`Let's continue with ${recall}`)}
+                    >
+                      Continue
+                    </button>
+                  </p>
+                )}
               </div>
               {user?.data_consent_at && (
-                <BriefingPanel onSend={onSend} onSuggest={onSuggest} />
+                <BriefingPanel onSend={onSend} onBriefing={onBriefing} />
               )}
               <div className="suggestions">
                 {(personal.length
@@ -432,12 +450,6 @@ export function Chat({
                     </span>
                   </button>
                 ))}
-              </div>
-              <div className="welcome-trust">
-                <span>
-                  <ShieldCheck size={15} />
-                  Source-aware answers
-                </span>
               </div>
             </div>
           ) : (

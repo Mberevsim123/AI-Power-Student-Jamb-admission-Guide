@@ -98,12 +98,21 @@ export interface Assessment {
   missing_subjects: string[];
   failed_olevel: string[];
 }
+export interface GeneralCheck {
+  id: string;
+  status: "pass" | "fail" | "warn" | "missing";
+  label: string;
+  detail: string;
+}
 export interface Eligibility {
   status:
     "meets_requirements" | "does_not_meet_requirements" | "insufficient_data";
   is_eligible: boolean;
   reason: string | null;
   assessments: Assessment[];
+  general_checks: GeneralCheck[];
+  next_steps: string[];
+  official_links: { label: string; url: string }[];
 }
 export type View = "chat" | "universities" | "eligibility" | "profile";
 export interface StreamMetadata {

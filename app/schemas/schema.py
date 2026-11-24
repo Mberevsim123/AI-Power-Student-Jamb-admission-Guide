@@ -278,6 +278,9 @@ class EligibilityResult(BaseModel):
     failed_olevel: List[str]  # O-Level credits not met
     eligible_universities: List[Dict[str, Any]]  # universities where score qualifies
     borderline_universities: List[Dict[str, Any]]  # within 10 marks of cutoff
+    general_checks: List[Dict[str, Any]] = Field(default_factory=list)  # national rules
+    next_steps: List[str] = Field(default_factory=list)
+    official_links: List[Dict[str, str]] = Field(default_factory=list)
 
 
 class AdmissionCycleResponse(BaseModel):

@@ -3,52 +3,107 @@ import type { FormEvent } from "react";
 import {
   ArrowRight,
   CheckCircle2,
+  Circle,
+  CircleAlert,
   CircleHelp,
   ClipboardCheck,
   GraduationCap,
   ListChecks,
   Plus,
-  ShieldCheck,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { Eligibility } from "../lib/types";
-import {
-  EmptyState,
-  ErrorNotice,
-  PageHeading,
-  SourceLink,
-  Spinner,
-} from "../components/ui";
+import type { Eligibility, GeneralCheck } from "../lib/types";
+import { ErrorNotice, PageHeading, SourceLink, Spinner } from "../components/ui";
 
-const subjects = [
-  "English",
+// Use of English is compulsory, so it is fixed as the first UTME subject.
+const utmeSubjects = [
   "Mathematics",
-  "Biology",
-  "Chemistry",
   "Physics",
+  "Chemistry",
+  "Biology",
+  "Agricultural Science",
   "Economics",
   "Government",
   "Literature in English",
   "Geography",
+  "Commerce",
+  "Principles of Accounts",
+  "Christian Religious Studies",
+  "Islamic Religious Studies",
+  "History",
+  "Further Mathematics",
+  "Computer Studies",
+  "Fine Arts",
+  "Music",
+  "Home Economics",
+  "Physical and Health Education",
+  "Technical Drawing",
+  "Yoruba",
+  "Igbo",
+  "Hausa",
+  "French",
+  "Arabic",
+];
+const subjects = [
+  "English Language",
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Biology",
   "Agricultural Science",
+  "Economics",
+  "Government",
+  "Literature in English",
+  "Geography",
   "Commerce",
   "Financial Accounting",
   "Christian Religious Studies",
   "Islamic Religious Studies",
   "History",
-  "French",
-  "Fine Arts",
-  "Computer Studies",
   "Civic Education",
+  "Further Mathematics",
+  "Computer Studies",
+  "Data Processing",
+  "Technical Drawing",
+  "Fine Arts",
+  "Music",
+  "Food and Nutrition",
+  "Animal Husbandry",
+  "Marketing",
+  "Yoruba",
+  "Igbo",
+  "Hausa",
+  "French",
+  "Arabic",
 ];
 const grades = ["A1", "B2", "B3", "C4", "C5", "C6", "D7", "E8", "F9"];
 const statuses = {
   meets_requirements: "You meet the published requirements",
   does_not_meet_requirements: "Some requirements are not met",
-  insufficient_data: "A little more information is needed",
+  insufficient_data: "Not enough published information to decide",
 };
+const checkIcons = {
+  pass: <CheckCircle2 size={17} />,
+  fail: <XCircle size={17} />,
+  warn: <CircleAlert size={17} />,
+  missing: <Circle size={17} />,
+};
+function Check({ check }: { check: GeneralCheck }) {
+  return (
+    <li className={`check check-${check.status}`}>
+      <span className="check-icon" aria-label={check.status}>
+        {checkIcons[check.status]}
+      </span>
+      <span>
+        <strong>{check.label}</strong>
+        <small>{check.detail}</small>
+      </span>
+    </li>
+  );
+}
 interface GradeRow {
   id: number;
   subject: string;
@@ -56,14 +111,14 @@ interface GradeRow {
 }
 export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
   const { user } = useAuth();
-  const [jambSubjects, setJambSubjects] = useState(["English", "", "", ""]);
+  const [jambSubjects, setJambSubjects] = useState(["", "", ""]);
   const [rows, setRows] = useState<GradeRow[]>(() => {
     const saved = Object.entries(user?.profile?.olevel_results || {});
     return (
       saved.length
         ? saved
         : [
-            ["English", ""],
+            ["English Language", ""],
             ["Mathematics", ""],
             ["", ""],
             ["", ""],
@@ -73,7 +128,9 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
       id,
       subject:
         subjects.find(
-          (option) => option.toLowerCase() === subject.toLowerCase(),
+          (option) =>
+            option.toLowerCase() === subject.toLowerCase() ||
+            option.toLowerCase() === `${subject.toLowerCase()} language`,
         ) || subject,
       grade,
     }));
@@ -122,7 +179,7 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
         await api.post<Eligibility>("/admissions/eligibility", {
           course_name: courseName.trim(),
           jamb_score: Number(form.get("jamb_score")),
-          jamb_subjects: jambSubjects.filter(Boolean),
+          jamb_subjects: ["Use of English", ...jambSubjects.filter(Boolean)],
           olevel_results: Object.fromEntries(
             selected.map((row) => [row.subject, row.grade]),
           ),
@@ -138,11 +195,10 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className="page-container">
       <PageHeading
-        eyebrow="KNOW WHERE YOU STAND"
-        title="Turn your results into a next step."
+        title="Eligibility check"
       >
-        Check your UTME score and subjects against published course
-        requirements.
+        Check your UTME score, subjects and O’Level results against JAMB’s
+        national rules and each institution’s published requirements.
       </PageHeading>
       <div className="eligibility-layout">
         <form className="panel eligibility-form" onSubmit={submit}>
@@ -151,8 +207,7 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
               <GraduationCap size={19} />
             </span>
             <div>
-              <h2>Your study plans</h2>
-              <p>Start with the course you have in mind.</p>
+              <h2>Course and score</h2>
             </div>
             <span className="step-tag">01 / 03</span>
           </div>
@@ -197,18 +252,23 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
               <ListChecks size={19} />
             </span>
             <div>
-              <h2>Your UTME subjects</h2>
-              <p>Select the subjects you sat for.</p>
+              <h2>UTME subjects</h2>
+              <p>Use of English plus your three other subjects.</p>
             </div>
             <span className="step-tag">02 / 03</span>
           </div>
           <div className="field-grid">
+            <label>
+              Subject 1
+              <input value="Use of English" readOnly aria-readonly="true" />
+            </label>
             {jambSubjects.map((value, index) => (
               <label key={index}>
-                Subject {index + 1}
+                Subject {index + 2}
                 <select
-                  aria-label={`UTME subject ${index + 1}`}
+                  aria-label={`UTME subject ${index + 2}`}
                   value={value}
+                  required
                   onChange={(e) =>
                     setJambSubjects((old) =>
                       old.map((subject, i) =>
@@ -218,8 +278,15 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
                   }
                 >
                   <option value="">Select a subject</option>
-                  {subjects.map((subject) => (
-                    <option key={subject}>{subject}</option>
+                  {utmeSubjects.map((subject) => (
+                    <option
+                      key={subject}
+                      disabled={
+                        jambSubjects.includes(subject) && value !== subject
+                      }
+                    >
+                      {subject}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -230,8 +297,8 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
               <ClipboardCheck size={19} />
             </span>
             <div>
-              <h2>Your O’Level results</h2>
-              <p>Add your WAEC or NECO subject grades.</p>
+              <h2>O’Level results</h2>
+              <p>WAEC, NECO or NABTEB grades.</p>
             </div>
             <span className="step-tag">03 / 03</span>
           </div>
@@ -308,9 +375,8 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
             )}
           </button>
           <p className="form-footnote">
-            <ShieldCheck size={14} />
-            Your results are checked against each institution’s published
-            requirements.
+            Checked against JAMB’s national rules and each institution’s
+            published requirements for the admission year.
           </p>
         </form>
         <aside className="eligibility-results" aria-live="polite">
@@ -323,84 +389,87 @@ export function EligibilityView({ onSignIn }: { onSignIn: () => void }) {
                   <CircleHelp size={28} />
                 )}
               </span>
-              <span className="eyebrow">YOUR ELIGIBILITY CHECK</span>
               <h2>{statuses[result.status]}</h2>
-              <p>
-                {result.reason ||
-                  "Review each institution’s requirements and confirm details with its admissions office."}
-              </p>
-              {result.assessments.map((assessment, index) => (
-                <div
-                  className="assessment"
-                  key={`${assessment.university}-${index}`}
-                >
-                  <div className="assessment-heading">
-                    <strong>{assessment.university}</strong>
-                    <span
-                      className={`badge ${assessment.status === "meets_requirements" ? "positive" : ""}`}
+              {result.reason && <p>{result.reason}</p>}
+
+              <h3 className="result-section">National entry rules</h3>
+              <ul className="checks">
+                {result.general_checks.map((check) => (
+                  <Check key={check.id} check={check} />
+                ))}
+              </ul>
+
+              {result.assessments.length > 0 && (
+                <>
+                  <h3 className="result-section">
+                    Institutions ({result.assessments.length})
+                  </h3>
+                  {result.assessments.map((assessment, index) => (
+                    <div
+                      className="assessment"
+                      key={`${assessment.university}-${index}`}
                     >
-                      {assessment.status === "meets_requirements"
-                        ? "Meets requirements"
-                        : assessment.status === "insufficient_data"
-                          ? "More data needed"
-                          : "Requirements not met"}
-                    </span>
-                  </div>
-                  <small>
-                    {assessment.course} · {assessment.year} · Published cut-off:{" "}
-                    {assessment.cutoff}
-                  </small>
-                  {assessment.missing_subjects.length > 0 && (
-                    <p>
-                      Missing UTME subjects:{" "}
-                      {assessment.missing_subjects.join(", ")}
-                    </p>
-                  )}
-                  {assessment.failed_olevel.length > 0 && (
-                    <ul>
-                      {assessment.failed_olevel.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  )}
-                  <SourceLink url={assessment.source_url}>
-                    View publication
-                  </SourceLink>
-                </div>
-              ))}
-              {result.assessments.length === 0 && (
-                <div className="notice neutral">
-                  No matching course requirements are published in the current
-                  knowledge base. Try the institution’s full course name and the
-                  relevant admission year.
-                </div>
+                      <div className="assessment-heading">
+                        <strong>{assessment.university}</strong>
+                        <span
+                          className={`badge ${assessment.status === "meets_requirements" ? "positive" : ""}`}
+                        >
+                          {assessment.status === "meets_requirements"
+                            ? "Meets requirements"
+                            : assessment.status === "insufficient_data"
+                              ? "More data needed"
+                              : "Not met"}
+                        </span>
+                      </div>
+                      <small>
+                        {assessment.course} · {assessment.year} · Cut-off{" "}
+                        {assessment.cutoff} · Your margin{" "}
+                        {assessment.margin >= 0 ? "+" : ""}
+                        {assessment.margin}
+                      </small>
+                      {assessment.missing_subjects.length > 0 && (
+                        <p>
+                          Required UTME subjects you didn’t take:{" "}
+                          {assessment.missing_subjects.join(", ")}
+                        </p>
+                      )}
+                      {assessment.failed_olevel.length > 0 && (
+                        <ul>
+                          {assessment.failed_olevel.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <SourceLink url={assessment.source_url}>
+                        Published requirements
+                      </SourceLink>
+                    </div>
+                  ))}
+                </>
               )}
+
+              {result.next_steps.length > 0 && (
+                <>
+                  <h3 className="result-section">Next steps</h3>
+                  <ol className="next-steps">
+                    {result.next_steps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                </>
+              )}
+              <div className="result-links">
+                {result.official_links.map((link) => (
+                  <SourceLink key={link.url} url={link.url}>
+                    {link.label}
+                  </SourceLink>
+                ))}
+              </div>
             </div>
           ) : (
-            <>
-              <div className="panel result-placeholder">
-                <EmptyState
-                  icon={<ClipboardCheck size={27} />}
-                  title="A clearer picture starts here"
-                >
-                  Your results will appear here. We’ll show what you meet,
-                  what’s missing, and where more information is needed.
-                </EmptyState>
-                <div className="result-placeholder-line" />
-                <div className="result-placeholder-line short" />
-              </div>
-              <div className="info-card">
-                <CircleHelp size={18} />
-                <div>
-                  <h3>Guidance you can act on</h3>
-                  <p>
-                    Meeting entry requirements is one step. Screening, available
-                    places and institution-specific conditions also influence
-                    admission.
-                  </p>
-                </div>
-              </div>
-            </>
+            <div className="panel result-placeholder">
+              <p className="muted">Your result will appear here.</p>
+            </div>
           )}
         </aside>
       </div>

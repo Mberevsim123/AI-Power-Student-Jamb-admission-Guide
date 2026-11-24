@@ -70,11 +70,9 @@ export function UniversityView({ onAsk }: { onAsk: (prompt: string) => void }) {
   return (
     <div className="page-container">
       <PageHeading
-        eyebrow="FIND YOUR FIT"
-        title="There’s a place for your ambition."
+        title="Universities"
       >
-        Explore Nigerian universities and the published information behind your
-        choices.
+        All 329 NUC-approved universities: federal, state and private.
       </PageHeading>
       <form className="explorer-toolbar" onSubmit={submit}>
         <div className="search-field">
@@ -114,7 +112,7 @@ export function UniversityView({ onAsk }: { onAsk: (prompt: string) => void }) {
             ? "Finding your options…"
             : search
               ? `Results for “${search}”`
-              : "Explore your options"}
+              : "All NUC-approved universities"}
         </span>
         <small>Published institution records</small>
       </div>

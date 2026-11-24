@@ -42,6 +42,13 @@ async def lifespan(app: FastAPI):
             "Qdrant unavailable; knowledge retrieval will be limited"
         )
 
+    # Self-heal: a fresh database or a skipped release step still gets every
+    # NUC-approved university (idempotent, lock-protected across workers).
+    from app.db.session import AsyncSessionLocal
+    from app.services.directory import ensure_directory
+
+    await ensure_directory(AsyncSessionLocal)
+
     yield  # app is running
 
     # Shutdown — close Redis pool

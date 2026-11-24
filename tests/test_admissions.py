@@ -168,3 +168,87 @@ async def test_unverified_and_historical_requirements_are_not_eligibility(db, re
     )
     assert result.status == "insufficient_data"
     assert not result.is_eligible
+
+
+def test_national_rules_are_checked_without_any_records():
+    from app.schemas.schema import EligibilityRequest
+    from app.services.admission_service import general_checks
+
+    def status(**changes):
+        req = EligibilityRequest(**payload(**changes))
+        return {c["id"]: c["status"] for c in general_checks(req)}
+
+    assert set(status().values()) == {"pass"}
+    assert (
+        status(jamb_subjects=["Biology", "Chemistry", "Physics", "Mathematics"])["utme_english"]
+        == "fail"
+    )
+    assert status(jamb_subjects=["English", "Biology", "Chemistry"])["utme_count"] == "fail"
+    weak = {
+        "English": "D7",
+        "Mathematics": "E8",
+        "Biology": "C6",
+        "Chemistry": "F9",
+        "Physics": "C4",
+    }
+    checks = status(olevel_results=weak)
+    assert checks["olevel_five"] == "fail"  # D7/E8/F9 are not credits
+    assert checks["olevel_english"] == "fail"
+    assert checks["olevel_maths"] == "warn"  # most, not all, programmes need it
+    assert status(olevel_results={})["olevel"] == "missing"
+
+
+def test_course_names_match_published_variants():
+    from app.services.admission_service import course_matches
+
+    assert course_matches("Medicine", "Medicine and Surgery")
+    assert course_matches("MBBS", "Medicine and Surgery")
+    assert course_matches("nursing", "Nursing Science")
+    assert course_matches("Computer Science", "Computer Science")
+    assert not course_matches("Law", "Lawn Tennis Studies")
+    assert not course_matches("Medicine", "Veterinary Studies")
+
+
+async def test_published_variant_is_compared_and_national_failures_block(client, records, db):
+    records["courses"][0].name = "Medicine and Surgery"
+    await db.commit()
+    data = (
+        await client.post(
+            "/api/v1/admissions/eligibility",
+            json=payload(jamb_score=250),
+            headers=auth(records["user"]),
+        )
+    ).json()
+    assert any(a["course"] == "Medicine and Surgery" for a in data["assessments"])
+    assert data["official_links"][0]["url"] == "https://eligibility.jamb.gov.ng"
+    no_english = payload(
+        jamb_score=300,
+        olevel_results={
+            "Maths": "A1",
+            "Biology": "A1",
+            "Chemistry": "A1",
+            "Physics": "A1",
+            "Economics": "A1",
+        },
+    )
+    data = (
+        await client.post(
+            "/api/v1/admissions/eligibility", json=no_english, headers=auth(records["user"])
+        )
+    ).json()
+    assert data["status"] == "does_not_meet_requirements" and not data["is_eligible"]
+    assert "national entry rules" in data["reason"]
+
+
+async def test_no_cycle_still_reports_national_rules(client, records):
+    data = (
+        await client.post(
+            "/api/v1/admissions/eligibility",
+            json=payload(year=2019),
+            headers=auth(records["user"]),
+        )
+    ).json()
+    assert data["status"] == "insufficient_data"
+    assert "No admission cycle for 2019" in data["reason"]
+    assert {c["status"] for c in data["general_checks"]} == {"pass"}
+    assert any("IBASS" in step for step in data["next_steps"])

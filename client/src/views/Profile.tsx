@@ -74,11 +74,9 @@ export function ProfileView({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className="page-container profile-page">
       <PageHeading
-        eyebrow="MAKE IT YOURS"
-        title="Your story. Your study plans."
+        title="My profile"
       >
-        A little context helps your admissions companion understand what matters
-        to you.
+        Your details personalise every answer.
       </PageHeading>
       {!user ? (
         <div className="panel profile-sign-in">
@@ -109,13 +107,11 @@ export function ProfileView({ onSignIn }: { onSignIn: () => void }) {
               <div>
                 <h2>{user.profile?.display_name || user.username}</h2>
                 <p>{user.email}</p>
-                <span className="badge positive">Student workspace</span>
               </div>
             </div>
             <div className="section-heading bordered">
               <div>
                 <h2>The basics</h2>
-                <p>Tell us how you’d like to be known.</p>
               </div>
             </div>
             <div className="field-grid">
@@ -156,7 +152,6 @@ export function ProfileView({ onSignIn }: { onSignIn: () => void }) {
             <div className="section-heading bordered">
               <div>
                 <h2>Your next chapter</h2>
-                <p>Your preferences can change as you explore.</p>
               </div>
             </div>
             <label>

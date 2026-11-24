@@ -59,7 +59,7 @@ No default administrator or password is created.
 
 The application bundles six short, sourced JAMB process guides and the full NUC directory of approved universities ([`app/data/nuc_universities.csv`](app/data/nuc_universities.csv): 77 federal, 69 state and 183 private, captured 24 November 2026), reviewed against [JAMB guidance](https://jamb.gov.ng/FAQ), [CAPS](https://jamb.gov.ng/caps), [JAMB support](https://support.jamb.gov.ng/faqs) and the [NUC directory](https://www.nuc.edu.ng/nigerian-univerisities/state-univerisity/). These work without AI keys, paid embeddings or Qdrant. They cover institution identities and general processes, not a complete national admissions dataset.
 
-The NUC tables have no state column, so each university's state is assigned from its location (one institution, Crestfield University, is `Unspecified`). Obvious NUC typos are corrected and the original spelling is kept in `nuc_name`. The chat recognises every listed university by its full name, common short name or abbreviation, and answers directory questions such as "private universities in Ogun" or "how many federal universities are there?" without a model. Load the directory into the university API with `python -m scripts.seed_knowledge`. The command is idempotent and preserves existing administrator records. It creates no cut-off marks, admission cycles or course requirements.
+The NUC tables have no state column, so each university's state is assigned from its location (one institution, Crestfield University, is `Unspecified`). Obvious NUC typos are corrected and the original spelling is kept in `nuc_name`. The chat recognises every listed university by its full name, common short name or abbreviation, and answers directory questions such as "private universities in Ogun" or "how many federal universities are there?" without a model. The directory loads automatically: the release step and every application start add any missing university, and a database lock keeps concurrent workers from duplicating rows. To load it by hand, run `python -m scripts.seed_knowledge`. The command is idempotent and preserves existing administrator records. It creates no cut-off marks, admission cycles or course requirements.
 
 The API starts with **no fabricated admissions records**. The project document specifies the software, but is not an official source for admissions facts. Administrators must review official JAMB or university publications and maintain their data for each admission cycle.
 
@@ -94,7 +94,15 @@ Authenticated `POST /admissions/eligibility` accepts:
 }
 ```
 
-The above is request-shape documentation, not a statement of actual Medicine requirements. Send all subjects needed by the selected institution. The evaluator compares each institution separately, respects minimum grades, accepts common English/Mathematics aliases, includes exact cut-off scores, and treats near-threshold qualifiers as eligible. Missing subjects/results, unpublished course-specific cut-offs, unverified sources, or requirements from another year produce `insufficient_data`. The result is a **published-requirements check**, not an admission guarantee. Sitting limits, optional subject groups, Direct Entry qualifications, catchment rules and screening aggregates still require institutional confirmation; free-form notes can communicate these conditions.
+The above is request-shape documentation, not a statement of actual Medicine requirements.
+
+Every check first applies **national rules** that hold for all candidates. These run even when no institution data is on file:
+- exactly four UTME subjects, including Use of English;
+- at least five O'Level credits (A1–C6);
+- a credit in English Language;
+- a credit in Mathematics, which is a warning rather than a failure, because a few arts programmes accept a pass.
+
+Failing a national rule means the result is "does not meet requirements". Course names match published variants, so "Medicine" finds "Medicine and Surgery". The response adds `general_checks`, `next_steps` and `official_links` (JAMB IBASS and e-Facility). Send all subjects needed by the selected institution. The evaluator compares each institution separately, respects minimum grades, accepts common English/Mathematics aliases, includes exact cut-off scores, and treats near-threshold qualifiers as eligible. Missing subjects/results, unpublished course-specific cut-offs, unverified sources, or requirements from another year produce `insufficient_data`. The result is a **published-requirements check**, not an admission guarantee. Sitting limits, optional subject groups, Direct Entry qualifications, catchment rules and screening aggregates still require institutional confirmation; free-form notes can communicate these conditions.
 
 ## Conversations
 

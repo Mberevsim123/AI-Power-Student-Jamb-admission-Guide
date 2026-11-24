@@ -300,13 +300,13 @@ function JourneyCard({
   );
 }
 
-/** Proactive start-of-session briefing: the agent speaks first. */
+/** Proactive start-of-session briefing: alerts and the student's journey. */
 export function BriefingPanel({
   onSend,
-  onSuggest,
+  onBriefing,
 }: {
   onSend: (text: string) => void;
-  onSuggest: (prompts: string[]) => void;
+  onBriefing: (briefing: Briefing) => void;
 }) {
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   useEffect(() => {
@@ -315,48 +315,22 @@ export function BriefingPanel({
       .get<Briefing>("/agent/briefing", controller.signal)
       .then((value) => {
         setBriefing(value);
-        onSuggest(value.suggestions);
+        onBriefing(value);
       })
       .catch(() => {
-        /* The static welcome remains useful if the briefing is unavailable. */
+        /* The plain welcome remains useful if the briefing is unavailable. */
       });
     return () => controller.abort();
-  }, [onSuggest]);
+  }, [onBriefing]);
   if (!briefing) return null;
-  const gap = briefing.profile.missing[0];
   return (
     <div className="agent-briefing">
-      {briefing.recall && (
-        <p className="agent-recall">
-          Last time we looked at <strong>{briefing.recall.course}</strong>
-          {briefing.recall.universities[0]
-            ? ` at ${briefing.recall.universities[0]}`
-            : ""}
-          .{" "}
-          <button
-            className="text-button"
-            onClick={() =>
-              onSend(
-                `Let's continue with ${briefing.recall!.course}${briefing.recall!.universities[0] ? ` at ${briefing.recall!.universities[0]}` : ""}`,
-              )
-            }
-          >
-            Pick up where we left off
-          </button>
-        </p>
-      )}
       <NudgeList nudges={briefing.nudges} />
       <JourneyCard
         journey={briefing.journey}
         onSend={onSend}
         onChange={(journey) => setBriefing({ ...briefing, journey })}
       />
-      {gap && briefing.profile.completeness < 70 && (
-        <p className="agent-gap">
-          Tip: tell me {gap.label} — e.g. “{gap.starter}” — and I’ll personalise
-          every answer.
-        </p>
-      )}
     </div>
   );
 }
