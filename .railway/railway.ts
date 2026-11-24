@@ -38,9 +38,10 @@ export default defineRailway(() => {
       // Secrets: set in Railway, never in Git.
       SECRET_KEY: preserve(),
       GEMINI_API_KEY: preserve(),
+      GROQ_API_KEY: preserve(), // backup model when Gemini is unavailable
 
-      // Gemini answers (with Google Search grounding). Groq/OpenAI/Anthropic join the
-      // failover chain automatically once their keys are added in Railway.
+      // Gemini answers first (with Google Search grounding); Groq takes over when Gemini
+      // is unavailable or out of quota. OpenAI/Anthropic join once their keys are added.
       LLM_PROVIDER: "gemini",
       LLM_FALLBACK_PROVIDERS: '["groq","openai","anthropic"]',
       GEMINI_MODEL: "gemini-3.8-flash",
