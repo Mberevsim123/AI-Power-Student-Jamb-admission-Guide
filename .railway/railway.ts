@@ -24,7 +24,7 @@ export default defineRailway(() => {
     // The repository Dockerfile builds the client and API; its CMD starts uvicorn
     // on $PORT. Migrations and the NUC directory seed run once per release
     // (idempotent) before traffic moves to the new deployment.
-    preDeploy: "alembic upgrade head && python -m scripts.seed_knowledge",
+    preDeploy: "python -m scripts.release", // one command: no shell needed
     healthcheck: "/health/ready",
     healthcheckTimeout: 120,
     env: {

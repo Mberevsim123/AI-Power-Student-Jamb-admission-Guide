@@ -120,10 +120,10 @@ jobs:
           tags: ${{ env.IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Release step (migrations + directory seed, as Railway pre-deploy runs it)
+      - name: Release step, exactly as Railway pre-deploy runs it (twice: idempotent)
         run: |
-          docker run --rm --network host $PROD_ENV $IMAGE \
-            sh -c "alembic upgrade head && python -m scripts.seed_knowledge && python -m scripts.seed_knowledge"
+          docker run --rm --network host $PROD_ENV $IMAGE python -m scripts.release
+          docker run --rm --network host $PROD_ENV $IMAGE python -m scripts.release
       - name: Start in production mode on a platform-assigned port
         run: docker run -d --name app --network host -e PORT=8081 $PROD_ENV $IMAGE
       - name: Smoke test

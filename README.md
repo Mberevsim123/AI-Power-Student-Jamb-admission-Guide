@@ -182,7 +182,7 @@ Production runs the [`Dockerfile`](Dockerfile): one container serves the API and
 [`.railway/railway.ts`](.railway/railway.ts) declares the project as Railway Infrastructure as Code:
 - a `postgres` database and a `redis` cache;
 - the `AI-Power-Student-Jamb-admission-Guide` service, built from this repository's `main` branch;
-- a pre-deploy release step: `alembic upgrade head && python -m scripts.seed_knowledge`;
+- a pre-deploy release step, `python -m scripts.release` (migrations, then the directory seed);
 - the `/health/ready` health check, which confirms the database answers.
 
 Secrets are never stored in the repository: the file marks them `preserve()`, which keeps the values set in Railway. (Railway retired `railway.json` config-as-code for new services; existing files stop being read on 2026-12-01.)
@@ -212,7 +212,7 @@ To roll back, redeploy an earlier deployment from the Railway dashboard.
 
 If you would rather configure Railway in the dashboard, these settings are equivalent:
 - **Builder:** Dockerfile (detected automatically).
-- **Pre-deploy command:** `alembic upgrade head && python -m scripts.seed_knowledge`.
+- **Pre-deploy command:** `python -m scripts.release`.
 - **Health check path:** `/health/ready`, timeout 120 s.
 - **Variables:** `ENVIRONMENT=production`, `DATABASE_URL=${{Postgres.DATABASE_URL}}` and `REDIS_URL=${{Redis.REDIS_URL}}`, plus the secrets above.
 
